@@ -1,5 +1,6 @@
 using Cobranzas_Vittoria.Seguridad.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Cobranzas_Vittoria.ControlPresupuestario.Application.ConsultaPresupuestaria.Arbol;
 using Cobranzas_Vittoria.ControlPresupuestario.Application.ConsultaPresupuestaria.Dashboard;
 using Cobranzas_Vittoria.ControlPresupuestario.Application.ConsultaPresupuestaria.GastosPorCentroCosto;
 using Cobranzas_Vittoria.ControlPresupuestario.Application.ConsultaPresupuestaria.GastosPorPartida;
@@ -50,9 +51,22 @@ public sealed class ConsultaPresupuestariaController : ControllerBase
     public async Task<IActionResult> Vigente([FromServices] VigenteHandler handler, [FromQuery] ConsultaPresupuestariaRequest filtro)
         => Ok((await handler.HandleAsync(filtro.AQuery())).Select(SaldoPartidaResponse.Desde));
 
-    /// <summary>Tablero de un centro de costo: distribución por rubro y curva acumulada real vs presupuesto.</summary>
+    /// <summary>
+    /// Tablero de un centro de costo: distribución por rubro y curva acumulada real vs presupuesto.
+    /// nivel agrupa los rubros en la partida ancestra de ese nivel de anidamiento (1 = raíces);
+    /// idPartidaPadre limita todo el tablero a esa rama y, sin nivel, agrupa por sus hijas.
+    /// </summary>
     [HttpGet("dashboard")]
     public async Task<IActionResult> Dashboard([FromServices] ObtenerDashboardHandler handler, [FromQuery] int idCentroCosto,
+        [FromQuery] int? idPresupuesto, [FromQuery] int? nivel, [FromQuery] int? idPartidaPadre)
+        => Ok(await handler.HandleAsync(new ObtenerDashboardQuery(idCentroCosto, idPresupuesto, nivel, idPartidaPadre)));
+
+    /// <summary>
+    /// Árbol de partidas del centro de costo con subtotales por categoría (montos vigentes): lista plana
+    /// en preorden; cada padre suma sus hojas descendientes.
+    /// </summary>
+    [HttpGet("arbol")]
+    public async Task<IActionResult> Arbol([FromServices] ObtenerArbolVigenteHandler handler, [FromQuery] int idCentroCosto,
         [FromQuery] int? idPresupuesto)
-        => Ok(await handler.HandleAsync(new ObtenerDashboardQuery(idCentroCosto, idPresupuesto)));
+        => Ok(await handler.HandleAsync(new ObtenerArbolVigenteQuery(idCentroCosto, idPresupuesto)));
 }

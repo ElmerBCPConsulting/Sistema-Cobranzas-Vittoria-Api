@@ -186,6 +186,8 @@ builder.Services.AddScoped<QuitarRolHandler>();
 builder.Services.AddScoped<IEspecialidadRepository, EspecialidadRepository>();
 builder.Services.AddScoped<IProyectoRepository, ProyectoRepository>();
 builder.Services.AddScoped<IProveedorRepository, ProveedorRepository>();
+builder.Services.AddScoped<IProveedorGastoAdministrativoRepository, ProveedorGastoAdministrativoRepository>();
+builder.Services.AddScoped<IProveedorTerrenoRepository, ProveedorTerrenoRepository>();
 builder.Services.AddScoped<IMaterialRepository, MaterialRepository>();
 builder.Services.AddScoped<IRequerimientoRepository, RequerimientoRepository>();
 builder.Services.AddScoped<IOrdenCompraRepository, OrdenCompraRepository>();
@@ -199,6 +201,8 @@ builder.Services.AddScoped<ICategoriaGastoRepository, CategoriaGastoRepository>(
 builder.Services.AddScoped<IEspecialidadService, EspecialidadService>();
 builder.Services.AddScoped<IProyectoService, ProyectoService>();
 builder.Services.AddScoped<IProveedorService, ProveedorService>();
+builder.Services.AddScoped<IProveedorGastoAdministrativoService, ProveedorGastoAdministrativoService>();
+builder.Services.AddScoped<IProveedorTerrenoService, ProveedorTerrenoService>();
 builder.Services.AddScoped<IMaterialService, MaterialService>();
 builder.Services.AddScoped<IRequerimientoService, RequerimientoService>();
 builder.Services.AddScoped<IOrdenCompraService, OrdenCompraService>();

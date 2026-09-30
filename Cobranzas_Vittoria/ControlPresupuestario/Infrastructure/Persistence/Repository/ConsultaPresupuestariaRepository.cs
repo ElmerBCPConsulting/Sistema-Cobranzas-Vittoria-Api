@@ -98,6 +98,8 @@ public sealed class ConsultaPresupuestariaRepository : RepositoryBase, IConsulta
         if (porPartida) Agregar("IdCatalogoPartida", f.IdCatalogoPartida);
         Agregar("EstadoPresupuesto", f.EstadoPresupuesto);
         if (f.SoloExcedidos == true && conSaldo) condiciones.Add("SaldoDisponible < 0");
+        if (f.SoloPresupuestosActivos)
+            condiciones.Add("IdPresupuesto IN (SELECT IdPresupuesto FROM ControlPresupuestario.Presupuesto WHERE Activo = 1)");
 
         return (condiciones.Count == 0 ? string.Empty : " WHERE " + string.Join(" AND ", condiciones), parametros);
     }

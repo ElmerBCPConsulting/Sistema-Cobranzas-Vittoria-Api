@@ -15,4 +15,7 @@ public sealed class ActualizarPresupuestoRequest
 
     public DateTime? FechaInicio { get; set; }
     public DateTime? FechaFin { get; set; }
+
+    /// <summary>true para inactivar aunque tenga gastos, compromisos o requerimientos asociados.</summary>
+    public bool ConfirmarInactivacion { get; set; }
 }

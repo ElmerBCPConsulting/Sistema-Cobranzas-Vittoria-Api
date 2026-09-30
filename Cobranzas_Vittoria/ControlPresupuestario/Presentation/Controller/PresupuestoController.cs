@@ -14,10 +14,13 @@ using Cobranzas_Vittoria.ControlPresupuestario.Application.PresupuestoDetalle.Ag
 using Cobranzas_Vittoria.ControlPresupuestario.Application.PresupuestoDetalle.CargarLote;
 using Cobranzas_Vittoria.ControlPresupuestario.Application.PresupuestoDetalle.Eliminar;
 using Cobranzas_Vittoria.ControlPresupuestario.Application.PresupuestoDetalle.Importar;
+using Cobranzas_Vittoria.ControlPresupuestario.Application.PresupuestoDetalle.ImportarEstructura;
 using Cobranzas_Vittoria.ControlPresupuestario.Application.PresupuestoDetalle.ListarPorVersion;
 using Cobranzas_Vittoria.ControlPresupuestario.Application.PresupuestoDetalle.Plantilla;
+using Cobranzas_Vittoria.ControlPresupuestario.Application.PresupuestoDetalle.PlantillaEstructura;
 using Cobranzas_Vittoria.ControlPresupuestario.Application.PresupuestoDetalle.RegistrarAjuste;
 using Cobranzas_Vittoria.ControlPresupuestario.Application.PresupuestoVersion.Anular;
+using Cobranzas_Vittoria.ControlPresupuestario.Application.PresupuestoVersion.Arbol;
 using Cobranzas_Vittoria.ControlPresupuestario.Application.PresupuestoVersion.Aprobar;
 using Cobranzas_Vittoria.ControlPresupuestario.Application.PresupuestoVersion.CrearNueva;
 using Cobranzas_Vittoria.ControlPresupuestario.Application.PresupuestoVersion.Listar;
@@ -71,7 +74,7 @@ public sealed class PresupuestoController : ControllerBase
     public async Task<IActionResult> Actualizar([FromServices] ActualizarPresupuestoHandler handler, int id,
         [FromBody] ActualizarPresupuestoRequest r)
         => Ok(PresupuestoResponse.Desde(await handler.HandleAsync(new ActualizarPresupuestoCommand(id, r.Nombre, r.Activo,
-            r.Descripcion, r.FechaInicio, r.FechaFin))));
+            r.Descripcion, r.FechaInicio, r.FechaFin, r.ConfirmarInactivacion))));
 
     // ------------------------------------------------------------------ versiones
 
@@ -105,6 +108,12 @@ public sealed class PresupuestoController : ControllerBase
     public async Task<IActionResult> AnularVersion([FromServices] AnularVersionHandler handler, int id, int versionId,
         [FromBody] AnularVersionRequest r)
         => Ok(PresupuestoVersionResponse.Desde(await handler.HandleAsync(new AnularVersionCommand(id, versionId, r.Motivo))));
+
+    /// <summary>Árbol de partidas de la versión con subtotales por categoría (cualquier estado).</summary>
+    [HttpGet("presupuestos/{id:int}/versiones/{versionId:int}/arbol")]
+    [AuthorizePermission(Permisos.ControlPresupuestario.Presupuesto.Ver)]
+    public async Task<IActionResult> ArbolVersion([FromServices] ObtenerArbolVersionHandler handler, int id, int versionId)
+        => Ok(await handler.HandleAsync(new ObtenerArbolVersionQuery(id, versionId)));
 
     // ----------------------------------------------------------- partidas de versión
 
@@ -172,6 +181,59 @@ public sealed class PresupuestoController : ControllerBase
             SheetName = "Presupuesto",
             Title = "Plantilla de carga de presupuesto",
             FiltersSubtitle = "Complete la columna Monto (0 si la partida no aplica). La columna Partida es informativa.",
+            GeneratedAtSubtitle = "Generado el: {0}",
+            IncludeTotalsRow = false,
+            HeaderRowIndex = 0
+        });
+        return File(xlsx, PlantillaArchivo.TipoXlsx, nombre);
+    }
+
+    /// <summary>
+    /// Importa un presupuesto jerárquico (categorías y partidas finales, columna Codigo o columnas Nivel 1…N):
+    /// crea en el catálogo las partidas que faltan y carga los montos de las hojas. Todo o nada (422 con errores[]).
+    /// </summary>
+    [HttpPost("presupuestos/{id:int}/versiones/{versionId:int}/partidas/importar-estructura")]
+    [AuthorizePermission(Permisos.ControlPresupuestario.Presupuesto.EditarDetalle)]
+    [AuthorizePermission(Permisos.ControlPresupuestario.Partida.Crear)]
+    [RequestSizeLimit(MaxRequestSize)]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> ImportarEstructura([FromServices] ImportarEstructuraHandler handler, int id,
+        int versionId, IFormFile? archivo, [FromForm] bool quitarAusentes, CancellationToken ct)
+    {
+        var archivoTabular = await ArchivoSubido.LeerAsync(archivo, ct);
+        return Ok(await handler.HandleAsync(new ImportarEstructuraCommand(id, versionId, archivoTabular, quitarAusentes)));
+    }
+
+    /// <summary>Plantilla jerárquica: el árbol del catálogo con los montos de las hojas y el subtotal de cada categoría.</summary>
+    [HttpGet("presupuestos/{id:int}/versiones/{versionId:int}/partidas/plantilla-estructura")]
+    [AuthorizePermission(Permisos.ControlPresupuestario.Presupuesto.EditarDetalle)]
+    public async Task<IActionResult> PlantillaEstructura([FromServices] ObtenerPlantillaEstructuraHandler handler,
+        [FromServices] IExcelExporter excel, int id, int versionId, [FromQuery] string? formato = "xlsx")
+    {
+        var tipo = PlantillaArchivo.NormalizarFormato(formato);
+        var filas = await handler.HandleAsync(new ObtenerPlantillaEstructuraQuery(id, versionId));
+        var nombre = PlantillaArchivo.NombreArchivo($"plantilla-estructura-version-{versionId}", tipo);
+        static string Monto(decimal? m) => m?.ToString("0.00", CultureInfo.InvariantCulture) ?? string.Empty;
+        if (tipo == "csv")
+            return File(PlantillaArchivo.Csv(ColumnasImportacion.EstructuraPresupuesto, filas.Select(f => new[]
+            {
+                f.Codigo, f.Nombre, f.Tipo ?? string.Empty, f.Seccion ?? string.Empty, Monto(f.Monto), Monto(f.Subtotal),
+                f.Observacion ?? string.Empty
+            })), PlantillaArchivo.TipoCsv, nombre);
+        var xlsx = excel.ExportToXlsx(filas.Select(f => new EstructuraPresupuestoPlantillaFila
+        {
+            Codigo = f.Codigo,
+            Nombre = f.Nombre,
+            Tipo = f.Tipo ?? string.Empty,
+            Seccion = f.Seccion ?? string.Empty,
+            Monto = f.Monto,
+            Subtotal = f.Subtotal,
+            Observacion = f.Observacion ?? string.Empty
+        }).ToList(), new ExcelSheetConfig
+        {
+            SheetName = "Estructura",
+            Title = "Plantilla de presupuesto por categorías",
+            FiltersSubtitle = "Monto solo en las partidas sin hijas (0 si no aplica); en las categorías déjalo vacío. Subtotal es informativo.",
             GeneratedAtSubtitle = "Generado el: {0}",
             IncludeTotalsRow = false,
             HeaderRowIndex = 0

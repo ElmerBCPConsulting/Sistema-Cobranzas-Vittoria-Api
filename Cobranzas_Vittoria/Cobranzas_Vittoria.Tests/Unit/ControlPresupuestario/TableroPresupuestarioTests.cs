@@ -92,4 +92,31 @@ public class TableroPresupuestarioTests
         Assert.That(d.DesviacionPorRubro.First().Codigo, Is.EqualTo("FIERRO"), "Primero el que más se desvía.");
         Assert.That(d.AlCorte.Desviacion, Is.EqualTo(0m));
     }
+
+    [Test]
+    public void SinFechas_LaCurvaRealParteDeCeroAntesDelPrimerGasto()
+    {
+        // Caso reportado: presupuesto sin fechas, un solo gasto de 2.8 M confirmado hoy.
+        var hoy = new DateTime(2026, 9, 30);
+        var d = TableroPresupuestario.Construir(Encabezado(null, null),
+            new[] { Rubro(1, "01.01", 3_000_000, 2_800_000) }, new[] { Gasto("2026-09-30", 1, 2_800_000) }, hoy);
+
+        Assert.That(d.Semanas.Count, Is.GreaterThanOrEqualTo(2), "Una curva necesita al menos dos puntos.");
+        Assert.That(d.Semanas.First().RealAcumulado, Is.Zero);
+        Assert.That(d.Semanas.Last(s => s.RealAcumulado is not null).RealAcumulado, Is.EqualTo(2_800_000m));
+        Assert.That(d.AlCorte.RealAcumulado, Is.EqualTo(2_800_000m));
+    }
+
+    [Test]
+    public void GastoAnteriorAlInicioDelPresupuesto_SeDibujaYElPlanSigueSusFechas()
+    {
+        var d = TableroPresupuestario.Construir(Encabezado(new DateTime(2026, 10, 1), new DateTime(2026, 12, 31)),
+            new[] { Rubro(1, "A", 900, 300) }, new[] { Gasto("2026-09-15", 1, 300) }, new DateTime(2026, 9, 20));
+
+        Assert.That(d.Semanas.First().RealAcumulado, Is.Zero);
+        Assert.That(d.Semanas.Where(s => s.RealAcumulado is not null).Max(s => s.RealAcumulado), Is.EqualTo(300m),
+            "El gasto previo al inicio no desaparece de la curva.");
+        Assert.That(d.Semanas.Where(s => s.Fecha <= new DateTime(2026, 10, 1)).All(s => s.PresupuestoAcumulado == 0m), Is.True);
+        Assert.That(d.Semanas.Last().PresupuestoAcumulado, Is.EqualTo(900m));
+    }
 }

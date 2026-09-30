@@ -28,3 +28,15 @@ public sealed class PresupuestoPlantillaFila
     [ExcelColumn(Header = "Monto", Order = 3, Width = 16)] public decimal Monto { get; set; }
     [ExcelColumn(Header = "Observacion", Order = 4, Width = 40)] public string Observacion { get; set; } = string.Empty;
 }
+
+/// <summary>Codigo va como texto: así Excel no convierte 1.10 en 1.1.</summary>
+public sealed class EstructuraPresupuestoPlantillaFila
+{
+    [ExcelColumn(Header = "Codigo", Order = 1, Width = 14)] public string Codigo { get; set; } = string.Empty;
+    [ExcelColumn(Header = "Nombre", Order = 2, Width = 50)] public string Nombre { get; set; } = string.Empty;
+    [ExcelColumn(Header = "Tipo", Order = 3, Width = 16)] public string Tipo { get; set; } = string.Empty;
+    [ExcelColumn(Header = "Seccion", Order = 4, Width = 18)] public string Seccion { get; set; } = string.Empty;
+    [ExcelColumn(Header = "Monto", Order = 5, Width = 16)] public decimal? Monto { get; set; }
+    [ExcelColumn(Header = "Subtotal", Order = 6, Width = 16)] public decimal? Subtotal { get; set; }
+    [ExcelColumn(Header = "Observacion", Order = 7, Width = 40)] public string Observacion { get; set; } = string.Empty;
+}

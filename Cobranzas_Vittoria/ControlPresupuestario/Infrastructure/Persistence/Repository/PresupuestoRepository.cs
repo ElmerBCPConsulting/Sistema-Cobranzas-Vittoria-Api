@@ -46,6 +46,26 @@ public sealed class PresupuestoRepository : RepositoryBase, IPresupuestoReposito
         return PresupuestoMapper.ToDomain(fila);
     });
 
+    public async Task<RegistrosAsociadosPresupuesto> ContarRegistrosAsociadosAsync(int idPresupuesto)
+    {
+        using var db = Open();
+        return await db.QuerySingleAsync<RegistrosAsociadosPresupuesto>("""
+            SELECT
+                (SELECT COUNT(*) FROM ControlPresupuestario.MovimientoPresupuestal m
+                 JOIN ControlPresupuestario.PresupuestoDetalle d ON d.IdPresupuestoDetalle = m.IdPresupuestoDetalle
+                 JOIN ControlPresupuestario.PresupuestoVersion v ON v.IdPresupuestoVersion = d.IdPresupuestoVersion
+                 WHERE v.IdPresupuesto = @idPresupuesto) AS Movimientos,
+                (SELECT COUNT(*) FROM contable.GastoDirecto g
+                 JOIN ControlPresupuestario.PresupuestoDetalle d ON d.IdPresupuestoDetalle = g.IdPresupuestoDetalle
+                 JOIN ControlPresupuestario.PresupuestoVersion v ON v.IdPresupuestoVersion = d.IdPresupuestoVersion
+                 WHERE v.IdPresupuesto = @idPresupuesto AND g.Estado <> 'ANULADO') AS GastosDirectos,
+                (SELECT COUNT(*) FROM compras.RequerimientoDetalle r
+                 JOIN ControlPresupuestario.PresupuestoDetalle d ON d.IdPresupuestoDetalle = r.IdPresupuestoDetalle
+                 JOIN ControlPresupuestario.PresupuestoVersion v ON v.IdPresupuestoVersion = d.IdPresupuestoVersion
+                 WHERE v.IdPresupuesto = @idPresupuesto) AS LineasRequerimiento;
+            """, new { idPresupuesto });
+    }
+
     public Task ActualizarAsync(Presupuesto p) => TraductorErroresSql.EjecutarAsync(async () =>
     {
         using var db = Open();

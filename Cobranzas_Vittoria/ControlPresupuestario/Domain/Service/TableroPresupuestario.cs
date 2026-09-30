@@ -14,7 +14,19 @@ public sealed record EjecucionTablero(DateTime Fecha, int IdCatalogoPartida, dec
 
 public sealed record TableroEncabezado(int IdCentroCosto, string CodigoCentroCosto, string NombreCentroCosto,
     string? NombreProyecto, string? CodigoMoneda, string? SimboloMoneda, int CantidadPresupuestos,
-    DateTime FechaInicio, DateTime FechaFin, DateTime FechaCorte, bool TieneCronograma);
+    DateTime FechaInicio, DateTime FechaFin, DateTime FechaCorte, bool TieneCronograma)
+{
+    /// <summary>Nivel de anidamiento con que se agruparon los rubros; null = partidas finales.</summary>
+    public int? Nivel { get; init; }
+
+    /// <summary>Nivel más profundo de las partidas del tablero: rango del selector de nivel (1..NivelMaximo).</summary>
+    public int NivelMaximo { get; init; }
+
+    /// <summary>Rama a la que se limitó el tablero y su camino desde la raíz (para el breadcrumb); vacío = todo.</summary>
+    public IReadOnlyList<TableroRama> Rama { get; init; } = Array.Empty<TableroRama>();
+}
+
+public sealed record TableroRama(int IdCatalogoPartida, string Codigo, string Nombre, int Nivel);
 
 public sealed record TableroResumen(decimal Presupuestado, decimal Comprometido, decimal Ejecutado, decimal Desviacion,
     decimal? DesviacionPorcentaje, decimal? PorcentajeEjecutado);
@@ -64,16 +76,19 @@ public static class TableroPresupuestario
                 Porcentaje(r.MontoEjecutado, ejecutado) ?? 0m))
             .ToList();
 
-        // Rango del gráfico: del inicio del presupuesto (o el primer gasto) al fin (o hoy).
+        // Rango del gráfico: del inicio del presupuesto al fin (o hoy). La curva real siempre parte de 0:
+        // si no hay fecha de inicio, o hay gastos anteriores a ella, el rango arranca una semana antes
+        // del primer gasto. La curva presupuestada se calcula siempre sobre las fechas del presupuesto.
         var primerGasto = ejecuciones.Count > 0 ? ejecuciones.Min(e => e.Fecha.Date) : corte;
-        var inicio = encabezado.FechaInicio?.Date ?? primerGasto;
+        var inicioPlan = encabezado.FechaInicio?.Date;
         var finPlan = encabezado.FechaFin?.Date;
-        var tieneCronograma = encabezado.FechaInicio is not null && finPlan is not null && finPlan > inicio;
+        var tieneCronograma = inicioPlan is not null && finPlan is not null && finPlan > inicioPlan;
+        var inicio = inicioPlan is { } ip && (ejecuciones.Count == 0 || ip < primerGasto) ? ip : primerGasto.AddDays(-7);
         var fin = Max(finPlan ?? corte, corte);
         if (fin <= inicio) fin = inicio.AddDays(7);
 
         decimal? Fraccion(DateTime fecha) => !tieneCronograma ? null
-            : Math.Clamp((decimal)(fecha - inicio).TotalDays / (decimal)(finPlan!.Value - inicio).TotalDays, 0m, 1m);
+            : Math.Clamp((decimal)(fecha - inicioPlan!.Value).TotalDays / (decimal)(finPlan!.Value - inicioPlan.Value).TotalDays, 0m, 1m);
 
         var porFecha = ejecuciones.OrderBy(e => e.Fecha).ToList();
         decimal RealHasta(DateTime fecha, int? partida = null) => porFecha

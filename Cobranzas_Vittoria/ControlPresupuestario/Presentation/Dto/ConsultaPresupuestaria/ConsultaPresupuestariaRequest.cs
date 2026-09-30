@@ -12,7 +12,9 @@ public sealed class ConsultaPresupuestariaRequest
     public int? IdMoneda { get; set; }
     public string? EstadoPresupuesto { get; set; }
     public bool? SoloExcedidos { get; set; }
+    /// <summary>true para incluir presupuestos inactivos (por defecto se descartan).</summary>
+    public bool? IncluirInactivos { get; set; }
 
     public ConsultaPresupuestariaQuery AQuery() => new(IdCentroCosto, IdPresupuesto, IdPresupuestoVersion,
-        IdCatalogoPartida, IdMoneda, EstadoPresupuesto, SoloExcedidos);
+        IdCatalogoPartida, IdMoneda, EstadoPresupuesto, SoloExcedidos, IncluirInactivos);
 }
